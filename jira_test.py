@@ -1,9 +1,15 @@
 import requests
+import json
+import os
+from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
 
-JIRA_BASE_URL = "https://lojasmarisa.atlassian.net"
-JIRA_EMAIL = "andreson.santos@marisapartner.com.br"
-JIRA_API_TOKEN = "ATATT3xFfGF0TXebDr_cWHOAk5aBTPzfj5AnB5DVJtj4PsNkF9dPsKvAMJMeztWlm2H_cXQQCuDExbs_7SqnDGj3t_rfhCxnaLAnQ3WNA6pZuZ19jlT6HoBdKjt5EbgiczmQN_jLVh1AOLMxr-ib5uImzUIidcSllstw9iMUe19VsAhjcgBAi8A=354291B7"
+# Carregar variáveis de ambiente
+load_dotenv()
+
+JIRA_BASE_URL = os.getenv('JIRA_BASE_URL', "https://lojasmarisa.atlassian.net")
+JIRA_EMAIL = os.getenv('JIRA_EMAIL', "andreson.santos@marisapartner.com.br")
+JIRA_API_TOKEN = os.getenv('JIRA_API_TOKEN', "")
 
 # Exemplo: buscar issues do projeto PLATF
 project_key = "PLATF"
