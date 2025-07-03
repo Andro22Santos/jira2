@@ -3,14 +3,15 @@ from flask_cors import cross_origin
 from src.services.jira_service import JiraService
 from datetime import datetime, timedelta
 import json
+import os
 
 jira_bp = Blueprint('jira', __name__)
 
 # Configurações do Jira
 JIRA_CONFIG = {
-    'base_url': 'https://lojasmarisa.atlassian.net',
-    'email': 'andreson.santos@marisapartner.com.br',
-    'api_token': 'ATATT3xFfGF0TXebDr_cWHOAk5aBTPzfj5AnB5DVJtj4PsNkF9dPsKvAMJMeztWlm2H_cXQQCuDExbs_7SqnDGj3t_rfhCxnaLAnQ3WNA6pZuZ19jlT6HoBdKjt5EbgiczmQN_jLVh1AOLMxr-ib5uImzUIidcSllstw9iMUe19VsAhjcgBAi8A=354291B7'
+    'base_url': os.getenv('JIRA_BASE_URL', 'https://lojasmarisa.atlassian.net'),
+    'email': os.getenv('JIRA_EMAIL', 'andreson.santos@marisapartner.com.br'),
+    'api_token': os.getenv('JIRA_API_TOKEN', '')
 }
 
 # Instância do serviço Jira
