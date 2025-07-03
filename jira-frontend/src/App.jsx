@@ -10,6 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { RefreshCw, Download, Filter, Search, BarChart3, Table as TableIcon, Settings, User, Star, Tag, Trophy } from 'lucide-react'
 import './App.css'
 import * as XLSX from 'xlsx'
+import { useNavigate } from 'react-router-dom'
 
 const API_BASE_URL = 'http://localhost:5000/api/jira'
 
@@ -46,6 +47,8 @@ function App() {
 
   // Novo estado para total do projeto
   const [projectTotalIssues, setProjectTotalIssues] = useState(null);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProjects()
@@ -302,6 +305,11 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('logged_in');
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -350,6 +358,7 @@ function App() {
               <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Sincronizando...' : 'Sincronizar'}
             </Button>
+            <Button onClick={handleLogout} variant="outline" className="ml-4">Sair</Button>
           </div>
         </div>
 
@@ -701,71 +710,71 @@ function App() {
                         </CardContent>
                       </Card>
                     )}
+                  </div>
 
-                    {/* Top Assignees e Top Reporters */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-56">
-                      {/* Top Responsáveis */}
-                      <Card className="min-w-[260px] shadow-lg border border-gray-200 rounded-xl transition-shadow duration-200 hover:shadow-xl px-8 py-6">
-                        <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                          <User className="text-blue-500 w-5 h-5" />
-                          <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis block" style={{maxWidth: '160px'}}>
-                            Top Responsáveis
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {dashboardStats.assignee_distribution.slice(0, 5).map((assignee, index) => (
-                              <div key={index} className={`flex items-center justify-between rounded px-2 py-1 ${index === 0 ? 'bg-blue-50 font-bold' : 'hover:bg-gray-50'}`}>
-                                <span className="text-sm font-medium break-words" style={{maxWidth: '70%'}}>{assignee.assignee}</span>
-                                <Badge variant="secondary">{assignee.count}</Badge>
+                  {/* Seção separada para os Tops */}
+                  <div className="flex flex-row gap-8 w-full mt-10">
+                    {/* Top Responsáveis */}
+                    <Card className="flex-1 min-w-0 shadow-lg border border-gray-200 rounded-xl transition-shadow duration-200 hover:shadow-xl px-16 py-10">
+                      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                        <User className="text-blue-500 w-5 h-5" />
+                        <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis block text-xl" style={{maxWidth: '100%'}}>
+                          Top Responsáveis
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {dashboardStats.assignee_distribution.slice(0, 5).map((assignee, index) => (
+                            <div key={index} className={`flex flex-row items-center justify-between gap-4 mb-3 px-4 py-3 rounded-lg shadow-sm ${index === 0 ? 'bg-blue-50 font-bold' : 'bg-white'} border border-gray-100`}>
+                              <span className="text-base font-semibold text-gray-900 break-words flex-1">{assignee.assignee}</span>
+                              <span className={`inline-block text-lg font-bold px-4 py-1 rounded-full ${index === 0 ? 'bg-blue-400 text-white' : 'bg-gray-200 text-gray-800'}`}>{assignee.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    {/* Top Relatores */}
+                    <Card className="flex-1 min-w-0 shadow-lg border border-gray-200 rounded-xl transition-shadow duration-200 hover:shadow-xl px-16 py-10">
+                      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                        <Star className="text-purple-500 w-5 h-5" />
+                        <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis block text-xl" style={{maxWidth: '100%'}}>
+                          Top Relatores
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {dashboardStats.reporter_distribution?.slice(0, 5).map((reporter, index) => (
+                            <div key={index} className={`flex flex-row items-center justify-between gap-4 mb-3 px-4 py-3 rounded-lg shadow-sm ${index === 0 ? 'bg-purple-50 font-bold' : 'bg-white'} border border-gray-100`}>
+                              <span className="text-base font-semibold text-gray-900 break-words flex-1">{reporter.reporter}</span>
+                              <span className={`inline-block text-lg font-bold px-4 py-1 rounded-full ${index === 0 ? 'bg-purple-400 text-white' : 'bg-gray-200 text-gray-800'}`}>{reporter.count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    {/* Top Releases */}
+                    <Card className="flex-1 min-w-0 shadow-lg border border-gray-200 rounded-xl transition-shadow duration-200 hover:shadow-xl px-16 py-10">
+                      <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                        <Tag className="text-green-500 w-5 h-5" />
+                        <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis block text-xl" style={{maxWidth: '100%'}}>
+                          Top Releases
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {dashboardStats.version_distribution && dashboardStats.version_distribution.length > 0 ? (
+                            dashboardStats.version_distribution.slice(0, 5).map((version, index) => (
+                              <div key={index} className={`flex flex-row items-center justify-between gap-4 mb-3 px-4 py-3 rounded-lg shadow-sm ${index === 0 ? 'bg-green-50 font-bold' : 'bg-white'} border border-gray-100`}>
+                                <span className="text-base font-semibold text-gray-900 break-words flex-1">{version.version || 'Não atribuído'}</span>
+                                <span className={`inline-block text-lg font-bold px-4 py-1 rounded-full ${index === 0 ? 'bg-green-400 text-white' : 'bg-gray-200 text-gray-800'}`}>{version.count}</span>
                               </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      {/* Top Relatores */}
-                      <Card className="min-w-[260px] shadow-lg border border-gray-200 rounded-xl transition-shadow duration-200 hover:shadow-xl px-8 py-6">
-                        <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                          <Star className="text-purple-500 w-5 h-5" />
-                          <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis block" style={{maxWidth: '160px'}}>
-                            Top Relatores
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {dashboardStats.reporter_distribution?.slice(0, 5).map((reporter, index) => (
-                              <div key={index} className={`flex items-center justify-between rounded px-2 py-1 ${index === 0 ? 'bg-purple-50 font-bold' : 'hover:bg-gray-50'}`}>
-                                <span className="text-sm font-medium break-words" style={{maxWidth: '70%'}}>{reporter.reporter}</span>
-                                <Badge variant="secondary">{reporter.count}</Badge>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      {/* Top Releases */}
-                      <Card className="min-w-[260px] shadow-lg border border-gray-200 rounded-xl transition-shadow duration-200 hover:shadow-xl px-8 py-6">
-                        <CardHeader className="flex flex-row items-center gap-2 pb-2">
-                          <Tag className="text-green-500 w-5 h-5" />
-                          <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis block" style={{maxWidth: '160px'}}>
-                            Top Releases
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {dashboardStats.version_distribution && dashboardStats.version_distribution.length > 0 ? (
-                              dashboardStats.version_distribution.slice(0, 5).map((version, index) => (
-                                <div key={index} className={`flex items-center justify-between rounded px-2 py-1 ${index === 0 ? 'bg-green-50 font-bold' : 'hover:bg-gray-50'}`}>
-                                  <span className="text-sm font-medium break-words" style={{maxWidth: '70%'}}>{version.version || 'Não atribuído'}</span>
-                                  <Badge variant="secondary">{version.count}</Badge>
-                                </div>
-                              ))
-                            ) : (
-                              <span className="text-sm text-gray-400">Nenhuma release encontrada</span>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
+                            ))
+                          ) : (
+                            <span className="text-sm text-gray-400">Nenhuma release encontrada</span>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </>
               )}
