@@ -12,7 +12,7 @@ import './App.css'
 import * as XLSX from 'xlsx'
 import { useNavigate } from 'react-router-dom'
 
-const API_BASE_URL = 'http://localhost:5000/api/jira'
+const API_BASE_URL = import.meta.env.VITE_API_URL + '/jira'
 
 function App() {
   const [projects, setProjects] = useState([])
