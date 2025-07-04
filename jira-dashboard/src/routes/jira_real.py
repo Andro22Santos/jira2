@@ -392,3 +392,68 @@ def get_filter_options():
             'versions': ['v2.0.0', 'v2.0.1', 'v2.1.0']
         })
 
+@jira_bp.route('/issues/<issue_key>', methods=['PUT'])
+@cross_origin()
+def update_issue(issue_key):
+    """Atualiza uma issue no Jira"""
+    try:
+        # Obter dados do request
+        update_data = request.get_json() or {}
+        
+        if not update_data:
+            return jsonify({
+                'success': False,
+                'message': 'Nenhum dado fornecido para atualização'
+            }), 400
+        
+        print(f"[UPDATE ENDPOINT] Atualizando issue {issue_key} com dados: {update_data}")
+        
+        # Chamar serviço para atualizar no Jira
+        result = jira_service.update_issue(issue_key, update_data)
+        
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        print(f"Erro no endpoint de atualização: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Erro interno: {str(e)}'
+        }), 500
+
+@jira_bp.route('/issues/<issue_key>/transitions', methods=['GET'])
+@cross_origin()
+def get_issue_transitions(issue_key):
+    """Obtém transições disponíveis para uma issue"""
+    try:
+        # Buscar transições disponíveis no Jira
+        transitions = jira_service._make_request(f'issue/{issue_key}/transitions')
+        
+        # Formatar resposta
+        available_transitions = []
+        for transition in transitions.get('transitions', []):
+            available_transitions.append({
+                'id': transition['id'],
+                'name': transition['name'],
+                'to_status': transition.get('to', {}).get('name', '')
+            })
+        
+        return jsonify({
+            'success': True,
+            'transitions': available_transitions
+        })
+        
+    except Exception as e:
+        print(f"Erro ao buscar transições para {issue_key}: {e}")
+        # Fallback com transições comuns
+        return jsonify({
+            'success': True,
+            'transitions': [
+                {'id': '11', 'name': 'To Do', 'to_status': 'To Do'},
+                {'id': '21', 'name': 'In Progress', 'to_status': 'In Progress'},
+                {'id': '31', 'name': 'Done', 'to_status': 'Done'}
+            ]
+        })
+

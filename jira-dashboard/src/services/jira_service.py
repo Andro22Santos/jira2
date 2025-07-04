@@ -616,3 +616,147 @@ class JiraService:
                 issue.resolved_date = None
         db.session.commit()
 
+    def update_issue(self, issue_key: str, update_fields: Dict) -> Dict:
+        """Atualiza uma issue no Jira"""
+        try:
+            # Preparar payload para atualização
+            fields = {}
+            
+            # Mapear campos do frontend para campos do Jira
+            if 'summary' in update_fields:
+                fields['summary'] = update_fields['summary']
+            
+            if 'status' in update_fields:
+                # Para status, precisamos fazer uma transição
+                return self._update_issue_status(issue_key, update_fields['status'])
+            
+            if 'priority' in update_fields:
+                # Buscar ID da prioridade
+                priority_name = update_fields['priority']
+                fields['priority'] = {'name': priority_name}
+            
+            if 'assignee' in update_fields:
+                # Assignee pode ser accountId ou null para desatribuir
+                assignee_id = update_fields['assignee']
+                if assignee_id and assignee_id != 'unassigned':
+                    fields['assignee'] = {'accountId': assignee_id}
+                else:
+                    fields['assignee'] = None
+            
+            if 'fix_versions' in update_fields:
+                # Fix versions como array de nomes
+                versions = update_fields['fix_versions']
+                if isinstance(versions, str):
+                    versions = [v.strip() for v in versions.split(',') if v.strip()]
+                elif not isinstance(versions, list):
+                    versions = []
+                fields['fixVersions'] = [{'name': v} for v in versions if v]
+            
+            if 'issue_type' in update_fields:
+                # Tipo de issue
+                fields['issuetype'] = {'name': update_fields['issue_type']}
+            
+            if 'description' in update_fields:
+                fields['description'] = update_fields['description']
+            
+            # Fazer a requisição de atualização
+            if fields:
+                payload = {'fields': fields}
+                response = self._make_request_put(f'issue/{issue_key}', payload)
+                
+                print(f"[UPDATE ISSUE] Issue {issue_key} atualizada com sucesso: {fields}")
+                
+                return {
+                    'success': True,
+                    'message': f'Issue {issue_key} atualizada com sucesso',
+                    'updated_fields': list(fields.keys())
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'Nenhum campo válido para atualização'
+                }
+                
+        except Exception as e:
+            print(f"Erro ao atualizar issue {issue_key}: {e}")
+            return {
+                'success': False,
+                'message': f'Erro ao atualizar issue: {str(e)}'
+            }
+    
+    def _update_issue_status(self, issue_key: str, new_status: str) -> Dict:
+        """Atualiza o status de uma issue através de transições"""
+        try:
+            # Buscar transições disponíveis
+            transitions = self._make_request(f'issue/{issue_key}/transitions')
+            
+            # Encontrar a transição para o novo status
+            target_transition = None
+            for transition in transitions.get('transitions', []):
+                if transition.get('to', {}).get('name', '').lower() == new_status.lower():
+                    target_transition = transition
+                    break
+            
+            if not target_transition:
+                return {
+                    'success': False,
+                    'message': f'Transição para status "{new_status}" não encontrada'
+                }
+            
+            # Executar a transição
+            payload = {
+                'transition': {
+                    'id': target_transition['id']
+                }
+            }
+            
+            self._make_request_post(f'issue/{issue_key}/transitions', payload)
+            
+            print(f"[UPDATE STATUS] Issue {issue_key} teve status alterado para {new_status}")
+            
+            return {
+                'success': True,
+                'message': f'Status da issue {issue_key} alterado para {new_status}'
+            }
+            
+        except Exception as e:
+            print(f"Erro ao atualizar status da issue {issue_key}: {e}")
+            return {
+                'success': False,
+                'message': f'Erro ao atualizar status: {str(e)}'
+            }
+    
+    def _make_request_put(self, endpoint: str, data: Dict) -> Dict:
+        """Faz requisição PUT para a API do Jira"""
+        import requests
+        
+        url = f"{self.base_url}/rest/api/3/{endpoint}"
+        headers = {
+            'Authorization': self._create_auth_header(),
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.put(url, headers=headers, json=data)
+        
+        if response.status_code not in [200, 201, 204]:
+            raise Exception(f"Erro na API do Jira: {response.status_code} - {response.text}")
+        
+        return response.json() if response.content else {}
+    
+    def _make_request_post(self, endpoint: str, data: Dict) -> Dict:
+        """Faz requisição POST para a API do Jira"""
+        import requests
+        
+        url = f"{self.base_url}/rest/api/3/{endpoint}"
+        headers = {
+            'Authorization': self._create_auth_header(),
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code not in [200, 201, 204]:
+            raise Exception(f"Erro na API do Jira: {response.status_code} - {response.text}")
+        
+        return response.json() if response.content else {}
+

@@ -27,6 +27,9 @@ function App() {
   const [totalPages, setTotalPages] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
   const [timelineDays, setTimelineDays] = useState(90)
+  const [editingCell, setEditingCell] = useState(null) // {issueKey, field}
+  const [editingValue, setEditingValue] = useState('')
+  const [savingChanges, setSavingChanges] = useState(false)
   
   // Filtros
   const [filters, setFilters] = useState({
@@ -135,6 +138,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/filters/options?project_key=${selectedProject}`)
       const data = await response.json()
+      console.log('📋 Usuários carregados:', data.assignees?.length || 0, data.assignees);
       setFilterOptions(data)
     } catch (error) {
       console.error('Erro ao buscar opções de filtro:', error)
@@ -309,6 +313,283 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('logged_in');
     navigate('/login');
+  };
+
+  // Funções de edição inline
+  const startEditing = (issueKey, field, currentValue) => {
+    setEditingCell({ issueKey, field });
+    
+    // Tratamento especial para campos específicos
+    if (field === 'assignee') {
+      // Para responsável, usar o nome em vez do ID
+      const assignee = filterOptions.assignees?.find(a => a.id === currentValue);
+      setEditingValue(assignee ? assignee.name : '');
+    } else {
+      setEditingValue(currentValue || '');
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingCell(null);
+    setEditingValue('');
+  };
+
+  const saveChanges = async () => {
+    if (!editingCell || savingChanges) return;
+
+    // Validação básica
+    const { issueKey, field } = editingCell;
+    
+    if (field === 'summary' && (!editingValue || editingValue.trim().length < 5)) {
+      alert('O resumo deve ter pelo menos 5 caracteres.');
+      return;
+    }
+
+    if (!editingValue && field !== 'assignee' && field !== 'fix_versions') {
+      alert('Este campo não pode ficar vazio.');
+      return;
+    }
+
+    setSavingChanges(true);
+    try {
+      // Preparar dados para atualização
+      const updateData = {};
+      
+      // Mapear campos do frontend para backend
+      if (field === 'summary') {
+        updateData.summary = editingValue.trim();
+      } else if (field === 'status') {
+        updateData.status = editingValue;
+      } else if (field === 'priority') {
+        updateData.priority = editingValue;
+      } else if (field === 'assignee') {
+        // Converter nome para ID
+        if (!editingValue.trim()) {
+          updateData.assignee = 'unassigned';
+        } else {
+          const assignee = filterOptions.assignees?.find(a => 
+            a.name.toLowerCase().includes(editingValue.toLowerCase()) ||
+            a.id === editingValue
+          );
+          updateData.assignee = assignee ? assignee.id : 'unassigned';
+        }
+      } else if (field === 'fix_versions') {
+        updateData.fix_versions = editingValue;
+      } else if (field === 'issue_type') {
+        updateData.issue_type = editingValue;
+      }
+
+      console.log(`🔄 Atualizando ${issueKey}.${field} = ${editingValue}`);
+
+      // Fazer requisição para atualizar
+      const response = await fetch(`${API_BASE_URL}/issues/${issueKey}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Recarregar dados após sucesso
+        await Promise.all([
+          fetchIssues(),
+          fetchDashboardStats(),
+          fetchFilterOptions()
+        ]);
+        
+        console.log(`✅ Issue ${issueKey} atualizada com sucesso`);
+        
+        // Feedback visual de sucesso
+        const successMsg = document.createElement('div');
+        successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50';
+        successMsg.textContent = `✅ ${issueKey} atualizada com sucesso`;
+        document.body.appendChild(successMsg);
+        setTimeout(() => successMsg.remove(), 3000);
+        
+      } else {
+        console.error(`❌ Erro ao atualizar issue: ${result.message}`);
+        alert(`Erro ao salvar: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar mudanças:', error);
+      alert('Erro ao salvar mudanças. Verifique sua conexão e tente novamente.');
+    } finally {
+      setSavingChanges(false);
+      cancelEditing();
+    }
+  };
+
+  // Componente de célula editável
+  const EditableCell = ({ issue, field, currentValue, options = [] }) => {
+    const isEditing = editingCell?.issueKey === issue.jira_key && editingCell?.field === field;
+    
+    // Tratamento de erro para prevenir tela branca
+    try {
+      if (isEditing) {
+      // Modo de edição
+      if (options.length > 0 && field !== 'assignee') {
+        // Dropdown para campos com opções (exceto assignee)
+        const safeValue = editingValue || options[0]?.value || '';
+        
+        return (
+          <div className="flex items-center gap-1">
+            <Select value={safeValue} onValueChange={setEditingValue}>
+              <SelectTrigger className="h-7 text-xs min-w-[120px]">
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map(option => (
+                  <SelectItem key={option.value || 'empty'} value={option.value || ''} className="text-xs">
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={saveChanges} disabled={savingChanges} className="h-7 w-7 p-0">
+              {savingChanges ? '⏳' : '✓'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancelEditing} className="h-7 w-7 p-0">
+              ✕
+            </Button>
+          </div>
+        );
+      } else if (field === 'assignee') {
+        // Lista simples de usuários para responsável
+        return (
+          <div className="relative flex items-center gap-1">
+            <div className="relative">
+              <Input
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                className="h-7 text-xs w-32"
+                placeholder="Digite ou selecione..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveChanges();
+                  if (e.key === 'Escape') cancelEditing();
+                }}
+                autoFocus
+              />
+                             {/* Lista sempre visível */}
+               <div className="absolute top-full left-0 w-56 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
+                 <div
+                   className="px-2 py-1 text-xs hover:bg-gray-100 cursor-pointer border-b bg-gray-50"
+                   onClick={() => setEditingValue('')}
+                 >
+                   ❌ Não atribuído
+                 </div>
+                 <div className="px-2 py-1 text-xs text-gray-500 bg-blue-50">
+                   👥 {options.length - 1} usuários encontrados:
+                 </div>
+                 {options.slice(1).map((option, index) => ( // Skip first "Não atribuído"
+                   <div
+                     key={option.value || `user-${index}`}
+                     className="px-2 py-1 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100"
+                     onClick={() => setEditingValue(option.label)}
+                     title={`ID: ${option.value}`}
+                   >
+                     <div className="flex items-center gap-1">
+                       <span>👤</span>
+                       <span className="font-medium">{option.label}</span>
+                     </div>
+                                           <div className="text-gray-500 text-xs ml-4">ID: {option.value}</div>
+                     </div>
+                   ))}
+                   <div className="border-t border-gray-200 bg-yellow-50 px-2 py-1">
+                     <div className="text-xs text-gray-600">
+                       💡 Não encontrou seu nome? Digite manualmente no campo acima.
+                     </div>
+                   </div>
+               </div>
+            </div>
+            <Button size="sm" onClick={saveChanges} disabled={savingChanges} className="h-7 w-7 p-0">
+              {savingChanges ? '⏳' : '✓'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancelEditing} className="h-7 w-7 p-0">
+              ✕
+            </Button>
+          </div>
+        );
+      } else {
+        // Input de texto para campos livres
+        return (
+          <div className="flex items-center gap-1">
+            <Input
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              className="h-7 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveChanges();
+                if (e.key === 'Escape') cancelEditing();
+              }}
+              autoFocus
+            />
+            <Button size="sm" onClick={saveChanges} disabled={savingChanges} className="h-7 w-7 p-0">
+              {savingChanges ? '⏳' : '✓'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancelEditing} className="h-7 w-7 p-0">
+              ✕
+            </Button>
+          </div>
+        );
+      }
+    } else {
+      // Modo de visualização
+      const displayValue = () => {
+        if (field === 'status' && currentValue) {
+          return (
+            <Badge className={`${getStatusColor(currentValue)} text-xs px-2 py-0`}>
+              {currentValue}
+            </Badge>
+          );
+        } else if (field === 'priority' && currentValue) {
+          return (
+            <Badge className={`${getPriorityColor(currentValue)} text-xs px-2 py-0`}>
+              {currentValue}
+            </Badge>
+          );
+        } else if (field === 'assignee') {
+          // Mostrar nome do assignee, não o ID
+          if (!currentValue || currentValue === '') {
+            return <span className="text-xs text-gray-400">Não atribuído</span>;
+          }
+          const assignee = filterOptions.assignees?.find(a => a.id === currentValue);
+          const name = assignee ? assignee.name : 'Não atribuído';
+          return <span className="text-xs">{name.split(' ')[0]}</span>; // Só primeiro nome
+        } else if (field === 'summary') {
+          return <span className="text-xs truncate block max-w-[200px]" title={currentValue}>{currentValue || '-'}</span>;
+        } else if (field === 'issue_type') {
+          return <span className="text-xs">{currentValue || '-'}</span>;
+        } else if (field === 'fix_versions') {
+          const versions = currentValue || '-';
+          return <span className="text-xs truncate block max-w-[120px]" title={versions}>{versions}</span>;
+        } else {
+          return <span className="text-xs">{currentValue || '-'}</span>;
+        }
+      };
+
+      return (
+        <div 
+          className="cursor-pointer hover:bg-blue-50 p-1 rounded min-h-[20px] flex items-center transition-colors group"
+          onClick={() => startEditing(issue.jira_key, field, currentValue)}
+          title="Clique para editar"
+        >
+          {displayValue()}
+          <span className="ml-1 opacity-0 group-hover:opacity-50 text-xs">✏️</span>
+        </div>
+      );
+    }
+    } catch (error) {
+      console.error('Erro no EditableCell:', error, { field, currentValue, issue: issue.jira_key });
+      // Fallback em caso de erro
+      return (
+        <div className="text-xs text-red-500 p-1" title={`Erro: ${error.message}`}>
+          {field === 'assignee' ? 'Erro responsável' : 'Erro'}
+        </div>
+      );
+    }
   };
 
   return (
@@ -574,60 +855,55 @@ function App() {
                       ))}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      <Card>
-                        <CardContent className="p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card className="border hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-gray-600">Total de Issues</p>
-                              <p className="text-2xl font-bold">{dashboardStats.total_issues}</p>
-                              {projectTotalIssues && projectTotalIssues !== dashboardStats.total_issues && (
-                                <p className="text-xs text-gray-500">
-                                  {projectTotalIssues} no projeto total
-                                </p>
-                              )}
+                              <p className="text-xs font-medium text-gray-600">Total</p>
+                              <p className="text-xl font-bold">{dashboardStats.total_issues}</p>
                             </div>
-                            <BarChart3 className="h-8 w-8 text-blue-500" />
+                            <BarChart3 className="h-5 w-5 text-blue-500" />
                           </div>
                         </CardContent>
                       </Card>
 
-                      <Card>
-                        <CardContent className="p-6">
+                      <Card className="border hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-gray-600">Criadas (30 dias)</p>
-                              <p className="text-2xl font-bold">{dashboardStats.recent_issues}</p>
+                              <p className="text-xs font-medium text-gray-600">Criadas</p>
+                              <p className="text-xl font-bold text-green-600">{dashboardStats.recent_issues}</p>
                             </div>
-                            <TrendingUp className="h-8 w-8 text-green-500" />
+                            <TrendingUp className="h-5 w-5 text-green-500" />
                           </div>
                         </CardContent>
                       </Card>
 
-                      <Card>
-                        <CardContent className="p-6">
+                      <Card className="border hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-gray-600">Resolvidas (30 dias)</p>
-                              <p className="text-2xl font-bold">{dashboardStats.resolved_issues}</p>
+                              <p className="text-xs font-medium text-gray-600">Resolvidas</p>
+                              <p className="text-xl font-bold text-purple-600">{dashboardStats.resolved_issues}</p>
                             </div>
-                            <CheckCircle className="h-8 w-8 text-green-500" />
+                            <CheckCircle className="h-5 w-5 text-purple-500" />
                           </div>
                         </CardContent>
                       </Card>
 
-                      <Card>
-                        <CardContent className="p-6">
+                      <Card className="border hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium text-gray-600">Taxa de Resolução</p>
-                              <p className="text-2xl font-bold">
+                              <p className="text-xs font-medium text-gray-600">Taxa</p>
+                              <p className="text-xl font-bold text-orange-600">
                                 {dashboardStats.recent_issues > 0 
                                   ? Math.round((dashboardStats.resolved_issues / dashboardStats.recent_issues) * 100)
                                   : 0}%
                               </p>
                             </div>
-                            <Activity className="h-8 w-8 text-orange-500" />
+                            <Activity className="h-5 w-5 text-orange-500" />
                           </div>
                         </CardContent>
                       </Card>
@@ -1306,20 +1582,36 @@ function App() {
               </Card>
 
               <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Issues - Edição Inline</CardTitle>
+                      <CardDescription className="text-xs">
+                        Clique para editar • Enter = Salvar • Esc = Cancelar
+                      </CardDescription>
+                    </div>
+                    {savingChanges && (
+                      <div className="flex items-center gap-2 text-blue-600">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        <span className="text-xs">Salvando...</span>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow>
-                          <TableHead>Chave</TableHead>
-                          <TableHead>Resumo</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Prioridade</TableHead>
-                          <TableHead>Versão/Release</TableHead>
-                          <TableHead>Responsável</TableHead>
-                          <TableHead>Reporter</TableHead>
-                          <TableHead>Criado</TableHead>
+                        <TableRow className="border-b">
+                          <TableHead className="w-24 text-xs font-semibold">Chave</TableHead>
+                          <TableHead className="min-w-[200px] text-xs font-semibold">Resumo</TableHead>
+                          <TableHead className="w-28 text-xs font-semibold">Status</TableHead>
+                          <TableHead className="w-20 text-xs font-semibold">Tipo</TableHead>
+                          <TableHead className="w-24 text-xs font-semibold">Prioridade</TableHead>
+                          <TableHead className="w-32 text-xs font-semibold">Versão</TableHead>
+                          <TableHead className="w-32 text-xs font-semibold">Responsável</TableHead>
+                          <TableHead className="w-28 text-xs font-semibold">Reporter</TableHead>
+                          <TableHead className="w-20 text-xs font-semibold">Criado</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1337,27 +1629,94 @@ function App() {
                           </TableRow>
                         ) : (
                           filteredIssues.map((issue) => (
-                            <TableRow key={issue.id}>
-                              <TableCell className="font-medium">{issue.jira_key}</TableCell>
-                              <TableCell className="max-w-xs truncate">{issue.summary}</TableCell>
-                              <TableCell>
-                                <Badge className={getStatusColor(issue.status)}>
-                                  {issue.status}
-                                </Badge>
+                            <TableRow key={issue.id} className="hover:bg-gray-50">
+                              <TableCell className="font-mono text-xs font-medium py-2">{issue.jira_key}</TableCell>
+                              
+                              {/* Resumo - Editável */}
+                              <TableCell className="py-2">
+                                <EditableCell 
+                                  issue={issue} 
+                                  field="summary" 
+                                  currentValue={issue.summary}
+                                />
                               </TableCell>
-                              <TableCell>{issue.issue_type}</TableCell>
-                              <TableCell>
-                                {issue.priority && (
-                                  <Badge className={getPriorityColor(issue.priority)}>
-                                    {issue.priority}
-                                  </Badge>
-                                )}
+                              
+                              {/* Status - Editável com dropdown */}
+                              <TableCell className="py-2">
+                                <EditableCell 
+                                  issue={issue} 
+                                  field="status" 
+                                  currentValue={issue.status}
+                                  options={filterOptions.statuses?.map(status => ({
+                                    value: status,
+                                    label: status
+                                  })) || []}
+                                />
                               </TableCell>
-                              <TableCell>{Array.isArray(issue.fix_versions) ? (issue.fix_versions.length > 0 ? issue.fix_versions.join(', ') : '-') : (issue.fix_versions || '-')}</TableCell>
-                              <TableCell>{issue.assignee_name || '-'}</TableCell>
-                              <TableCell>{issue.reporter_name || '-'}</TableCell>
-                              <TableCell>
-                                {issue.created_date ? new Date(issue.created_date).toLocaleDateString() : '-'}
+                              
+                              {/* Tipo - Editável com dropdown */}
+                              <TableCell className="py-2">
+                                <EditableCell 
+                                  issue={issue} 
+                                  field="issue_type" 
+                                  currentValue={issue.issue_type}
+                                  options={filterOptions.types?.map(type => ({
+                                    value: type,
+                                    label: type
+                                  })) || []}
+                                />
+                              </TableCell>
+                              
+                              {/* Prioridade - Editável com dropdown */}
+                              <TableCell className="py-2">
+                                <EditableCell 
+                                  issue={issue} 
+                                  field="priority" 
+                                  currentValue={issue.priority}
+                                  options={filterOptions.priorities?.map(priority => ({
+                                    value: priority,
+                                    label: priority
+                                  })) || []}
+                                />
+                              </TableCell>
+                              
+                              {/* Versão - Editável com dropdown */}
+                              <TableCell className="py-2">
+                                <EditableCell 
+                                  issue={issue} 
+                                  field="fix_versions" 
+                                  currentValue={Array.isArray(issue.fix_versions) ? issue.fix_versions.join(', ') : (issue.fix_versions || '')}
+                                  options={filterOptions.versions?.map(version => ({
+                                    value: version,
+                                    label: version
+                                  })) || []}
+                                />
+                              </TableCell>
+                              
+                              {/* Responsável - Editável com dropdown */}
+                              <TableCell className="py-2">
+                                <EditableCell 
+                                  issue={issue} 
+                                  field="assignee" 
+                                  currentValue={issue.assignee_id || ''}
+                                  options={[
+                                    { value: '', label: 'Não atribuído' },
+                                    ...(filterOptions.assignees?.filter(assignee => assignee && assignee.id && assignee.name).map(assignee => ({
+                                      value: assignee.id || '',
+                                      label: assignee.name || 'Sem nome'
+                                    })) || [])
+                                  ]}
+                                />
+                              </TableCell>
+                              
+                              {/* Reporter - Não editável */}
+                              <TableCell className="text-xs text-gray-600 py-2">
+                                {issue.reporter_name ? issue.reporter_name.split(' ')[0] : '-'}
+                              </TableCell>
+                              
+                              {/* Data de criação - Não editável */}
+                              <TableCell className="text-xs text-gray-500 py-2">
+                                {issue.created_date ? new Date(issue.created_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '-'}
                               </TableCell>
                             </TableRow>
                           ))
