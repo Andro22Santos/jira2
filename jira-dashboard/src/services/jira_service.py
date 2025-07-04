@@ -80,6 +80,11 @@ class JiraService:
     
     def get_issues(self, filters: Dict, page: int = 1, per_page: int = 50, fetch_all: bool = False) -> Dict:
         try:
+            # LOG: Debug dos filtros recebidos
+            if fetch_all:
+                print(f"[JIRA SERVICE] get_issues chamado com filtros: {filters}")
+                print(f"[JIRA SERVICE] fetch_all: {fetch_all}")
+            
             jql_parts = []
             if 'project' in filters:
                 jql_parts.append(f"project = {filters['project']}")
@@ -99,7 +104,12 @@ class JiraService:
                 # Escapa aspas simples no valor
                 fix_version_value = filters['fix_version'].replace("'", "\\'")
                 jql_parts.append(f"fixVersion = '{fix_version_value}'")
+                if fetch_all:
+                    print(f"[JIRA SERVICE] Filtro fix_version adicionado ao JQL: fixVersion = '{fix_version_value}'")
             jql = ' AND '.join(jql_parts)
+            
+            if fetch_all:
+                print(f"[JIRA SERVICE] JQL final: {jql}")
 
             all_issues = []
             total = 0
@@ -141,24 +151,46 @@ class JiraService:
                         })
                     all_issues.extend(issues)
                     total = data.get('total', 0)
+                    
+                    if fetch_all:
+                        print(f"[JIRA SERVICE] Página processada. start_at: {start_at}, issues encontradas nesta página: {len(issues)}, total no Jira: {total}")
+                    
                     if start_at + 100 >= total:
                         break
                     start_at += 100
-                # Após buscar as issues do Jira, se houver filtro de fix_version, filtrar manualmente
+                
+                # LOG: Debug antes da filtragem manual
+                if fetch_all:
+                    print(f"[JIRA SERVICE] Issues coletadas do Jira antes da filtragem manual: {len(all_issues)}")
+                
+                # CORREÇÃO DO BUG: Após buscar as issues do Jira, se houver filtro de fix_version, filtrar manualmente
                 if 'fix_version' in filters:
                     fix_version_value = filters['fix_version'].strip().lower()
+                    print(f"[JIRA SERVICE] Iniciando filtragem manual para fix_version: '{fix_version_value}'")
+                    
                     filtered_issues = []
                     for issue in all_issues:
-                        fix_versions = [v['name'] for v in issue.get('fields', {}).get('fixVersions', []) if v.get('name')]
-                        if any(fix_version_value == v.strip().lower() for v in fix_versions):
+                        # CORREÇÃO: acessar fix_versions diretamente do issue, não de fields
+                        fix_versions = issue.get('fix_versions', [])
+                        issue_versions_normalized = [v.strip().lower() for v in fix_versions if v]
+                        
+                        if fetch_all and len(filtered_issues) < 5:  # Log apenas para as primeiras 5 issues
+                            print(f"[JIRA SERVICE] Issue {issue.get('jira_key')}: versões = {fix_versions}, normalizado = {issue_versions_normalized}")
+                        
+                        if any(fix_version_value == v for v in issue_versions_normalized):
                             filtered_issues.append(issue)
+                            if fetch_all:
+                                print(f"[JIRA SERVICE] ✓ Issue {issue.get('jira_key')} incluída (match: {fix_version_value})")
+                    
+                    print(f"[JIRA SERVICE] Filtragem manual concluída: {len(filtered_issues)} issues restantes")
                     all_issues = filtered_issues
+                
                 return {
                     'issues': all_issues,
-                    'total': total,
+                    'total': len(all_issues),  # CORREÇÃO: retornar o total das issues filtradas, não o total original
                     'pages': 1,
                     'current_page': 1,
-                    'per_page': total,
+                    'per_page': len(all_issues),
                     'has_next': False,
                     'has_prev': False
                 }

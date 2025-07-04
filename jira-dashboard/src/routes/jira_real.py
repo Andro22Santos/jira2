@@ -108,6 +108,14 @@ def get_issues():
         per_page = int(request.args.get('per_page', 50))
         fetch_all = request.args.get('fetch_all', 'false').lower() == 'true'
         
+        # LOG: Debug de filtros (especialmente para exportação)
+        if fetch_all:
+            print(f"[EXPORTAÇÃO] Filtros recebidos:")
+            print(f"  project_key: '{project_key}'")
+            print(f"  fix_version: '{fix_version}' (tipo: {type(fix_version)})")
+            print(f"  status: '{status}'")
+            print(f"  fetch_all: {fetch_all}")
+        
         # Monta filtros para o Jira
         filters = {}
         created_clauses = []
@@ -131,9 +139,18 @@ def get_issues():
             filters['created'] = ' AND '.join(created_clauses)
         if fix_version:
             filters['fix_version'] = fix_version
+            
+        # LOG: Debug do dicionário de filtros montado
+        if fetch_all:
+            print(f"[EXPORTAÇÃO] Filtros montados para Jira: {filters}")
         
         # Busca issues do Jira
         issues_data = jira_service.get_issues(filters, page, per_page, fetch_all=fetch_all)
+        
+        # LOG: Debug do resultado
+        if fetch_all:
+            print(f"[EXPORTAÇÃO] Resultado: {len(issues_data.get('issues', []))} issues encontradas")
+            
         if not issues_data or not issues_data.get('issues'):
             raise Exception('Sem dados do Jira')
         return jsonify(issues_data)
