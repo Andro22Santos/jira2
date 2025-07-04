@@ -267,7 +267,18 @@ class JiraService:
             assignee_dist = {}
             reporter_dist = {}
             version_dist = {}
+            
+            # NOVO: Backlog Aging - contadores por faixa de dias e prioridade
+            backlog_aging = {
+                '0-5 dias': {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0, 'Sem prioridade': 0},
+                '6-15 dias': {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0, 'Sem prioridade': 0},
+                '16-30 dias': {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0, 'Sem prioridade': 0},
+                'Mais de 30 dias': {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0, 'Sem prioridade': 0}
+            }
+            
             thirty_days_ago = datetime.now(datetime.utcnow().astimezone().tzinfo) - timedelta(days=30)
+            today = datetime.now(datetime.utcnow().astimezone().tzinfo)
+            
             for issue in issues:
                 status = issue.get('status') or 'Desconhecido'
                 status_dist[status] = status_dist.get(status, 0) + 1
@@ -279,15 +290,19 @@ class JiraService:
                 assignee_dist[assignee] = assignee_dist.get(assignee, 0) + 1
                 reporter = issue.get('reporter_name') or 'Não atribuído'
                 reporter_dist[reporter] = reporter_dist.get(reporter, 0) + 1
-                # Contar criadas nos últimos 30 dias
+                
+                # Datas para cálculos
                 created_date = issue.get('created_date')
                 resolution_date = issue.get('resolution_date')
                 updated_date = issue.get('updated_date')
                 created_dt = self.parse_jira_date(created_date) if isinstance(created_date, str) else created_date
                 resolution_dt = self.parse_jira_date(resolution_date) if isinstance(resolution_date, str) else resolution_date
                 updated_dt = self.parse_jira_date(updated_date) if isinstance(updated_date, str) else updated_date
+                
+                # Contar criadas nos últimos 30 dias
                 if created_dt and created_dt >= thirty_days_ago:
                     recent_issues += 1
+                
                 # Considera resolvida se:
                 # 1. Tem resolution_date recente
                 # 2. OU status é 'Concluído' (ou equivalente) e updated_date recente
@@ -295,6 +310,42 @@ class JiraService:
                 if (resolution_dt and resolution_dt >= thirty_days_ago) or \
                    (status and status.strip().lower() in status_resolvidos and updated_dt and updated_dt >= thirty_days_ago):
                     resolved_issues += 1
+                
+                # NOVO: Calcular Backlog Aging apenas para issues abertas (sem resolution_date)
+                if not resolution_dt and created_dt:
+                    days_open = (today - created_dt).days
+                    
+                    # LOG: Debug de prioridades para entender os valores reais
+                    if sum(sum(priorities.values()) for priorities in backlog_aging.values()) < 10:
+                        print(f"[BACKLOG AGING] Issue {issue.get('jira_key')}: prioridade original='{priority}', criada em {created_date}, {days_open} dias aberta")
+                    
+                    # Normalizar prioridade - incluir mais variações do Jira
+                    priority_normalized = priority.lower() if priority else ''
+                    if priority_normalized in ['critical', 'highest', 'blocker']:
+                        issue_priority = 'Critical'
+                    elif priority_normalized in ['high', 'major']:
+                        issue_priority = 'High'
+                    elif priority_normalized in ['medium', 'normal']:
+                        issue_priority = 'Medium'
+                    elif priority_normalized in ['low', 'minor', 'lowest']:
+                        issue_priority = 'Low'
+                    else:
+                        issue_priority = 'Sem prioridade'
+                    
+                    # LOG: Debug das primeiras 5 issues abertas
+                    if sum(sum(priorities.values()) for priorities in backlog_aging.values()) < 5:
+                        print(f"[BACKLOG AGING] Issue {issue.get('jira_key')}: {days_open} dias aberta, prioridade normalizada: {issue_priority}")
+                    
+                    # Classificar por faixa de dias
+                    if days_open <= 5:
+                        backlog_aging['0-5 dias'][issue_priority] += 1
+                    elif days_open <= 15:
+                        backlog_aging['6-15 dias'][issue_priority] += 1
+                    elif days_open <= 30:
+                        backlog_aging['16-30 dias'][issue_priority] += 1
+                    else:
+                        backlog_aging['Mais de 30 dias'][issue_priority] += 1
+                
                 # Versões/Release
                 fix_versions = issue.get('fix_versions')
                 # Pode ser lista, string JSON ou string simples
@@ -311,6 +362,32 @@ class JiraService:
                             version_dist['Não atribuído'] = version_dist.get('Não atribuído', 0) + 1
                         else:
                             version_dist[v] = version_dist.get(v, 0) + 1
+            
+            # Converter backlog_aging para formato adequado para o frontend
+            backlog_aging_formatted = []
+            for time_range, priorities in backlog_aging.items():
+                total_range = sum(priorities.values())
+                # CORREÇÃO: Incluir todas as faixas, mesmo com zero, para o gráfico renderizar
+                backlog_aging_formatted.append({
+                    'time_range': time_range,
+                    'total': total_range,
+                    'critical': priorities['Critical'],
+                    'high': priorities['High'],
+                    'medium': priorities['Medium'],
+                    'low': priorities['Low'],
+                    'no_priority': priorities['Sem prioridade']
+                })
+            
+            # LOG: Debug do resultado final
+            total_open_issues = sum(sum(priorities.values()) for priorities in backlog_aging.values())
+            print(f"[BACKLOG AGING] Total de issues abertas encontradas: {total_open_issues}")
+            print(f"[BACKLOG AGING] Total de issues processadas: {total_issues}")
+            print(f"[BACKLOG AGING] Issues resolvidas: {resolved_issues}")
+            print(f"[BACKLOG AGING] Faixas com dados: {len(backlog_aging_formatted)}")
+            for item in backlog_aging_formatted:
+                if item['total'] > 0:
+                    print(f"[BACKLOG AGING] {item['time_range']}: {item['total']} tickets (C:{item['critical']}, H:{item['high']}, M:{item['medium']}, L:{item['low']}, S:{item['no_priority']})")
+            
             # Montar resposta
             return {
                 'total_issues': total_issues,
@@ -333,51 +410,74 @@ class JiraService:
                 ],
                 'version_distribution': [
                     {'version': k, 'count': v} for k, v in version_dist.items()
-                ]
+                ],
+                'backlog_aging': backlog_aging_formatted  # NOVO: Dados de Backlog Aging
             }
         except Exception as e:
             print(f"Erro ao buscar estatísticas: {e}")
             return None
     
     def get_timeline_data(self, filters: Dict = None, days: int = 30) -> Dict:
-        """Busca dados de timeline"""
+        """Busca dados de timeline usando as issues já coletadas"""
         try:
             filters = filters or {}
+            
+            # Buscar todas as issues com os filtros aplicados
+            issues_data = self.get_issues(filters, fetch_all=True)
+            issues = issues_data.get('issues', [])
+            
+            print(f"[TIMELINE] Processando {len(issues)} issues para timeline de {days} dias")
+            
             created_timeline = []
             resolved_timeline = []
+            
+            # Preparar contadores por data
+            created_counts = {}
+            resolved_counts = {}
+            
+            # Processar cada issue
+            for issue in issues:
+                # Processar data de criação
+                created_date = issue.get('created_date')
+                if created_date:
+                    created_dt = self.parse_jira_date(created_date) if isinstance(created_date, str) else created_date
+                    if created_dt:
+                        date_str = created_dt.date().strftime('%Y-%m-%d')
+                        created_counts[date_str] = created_counts.get(date_str, 0) + 1
+                
+                # Processar data de resolução
+                resolution_date = issue.get('resolution_date')
+                if resolution_date:
+                    resolution_dt = self.parse_jira_date(resolution_date) if isinstance(resolution_date, str) else resolution_date
+                    if resolution_dt:
+                        date_str = resolution_dt.date().strftime('%Y-%m-%d')
+                        resolved_counts[date_str] = resolved_counts.get(date_str, 0) + 1
+            
+            # Gerar timeline para os últimos N dias
             for i in range(days):
                 date = (datetime.now() - timedelta(days=days-i-1)).date()
-                # Issues criadas neste dia
-                day_filters = filters.copy()
-                day_filters['created'] = f"created = '{date}'"
-                created_jql_parts = []
-                if 'project' in day_filters:
-                    created_jql_parts.append(f"project = {day_filters['project']}")
-                if 'status' in day_filters:
-                    created_jql_parts.append(f"status = '{day_filters['status']}'")
-                if 'assignee' in day_filters:
-                    created_jql_parts.append(f"assignee = '{day_filters['assignee']}'")
-                if 'reporter' in day_filters:
-                    created_jql_parts.append(f"reporter = '{day_filters['reporter']}'")
-                if 'issuetype' in day_filters:
-                    created_jql_parts.append(f"issuetype = '{day_filters['issuetype']}'")
-                if 'priority' in day_filters:
-                    created_jql_parts.append(f"priority = '{day_filters['priority']}'")
-                if 'created' in day_filters:
-                    created_jql_parts.append(day_filters['created'])
-                created_jql = ' AND '.join(created_jql_parts)
-                params = {'jql': created_jql, 'maxResults': 0}
-                created_data = self._make_request('search', params)
-                created_count = created_data.get('total', 0)
-                # Issues resolvidas neste dia
-                resolved_jql_parts = created_jql_parts.copy()
-                resolved_jql_parts[-1] = f"resolutiondate = '{date}'"
-                resolved_jql = ' AND '.join(resolved_jql_parts)
-                params = {'jql': resolved_jql, 'maxResults': 0}
-                resolved_data = self._make_request('search', params)
-                resolved_count = resolved_data.get('total', 0)
-                created_timeline.append({'date': str(date), 'count': created_count})
-                resolved_timeline.append({'date': str(date), 'count': resolved_count})
+                date_str = date.strftime('%Y-%m-%d')
+                
+                created_count = created_counts.get(date_str, 0)
+                resolved_count = resolved_counts.get(date_str, 0)
+                
+                created_timeline.append({'date': date_str, 'count': created_count})
+                resolved_timeline.append({'date': date_str, 'count': resolved_count})
+            
+            # Log para debug
+            total_created = sum(item['count'] for item in created_timeline)
+            total_resolved = sum(item['count'] for item in resolved_timeline)
+            print(f"[TIMELINE] Total criadas: {total_created}, Total resolvidas: {total_resolved}")
+            
+            # Mostrar alguns exemplos de datas com dados
+            created_with_data = [item for item in created_timeline if item['count'] > 0]
+            resolved_with_data = [item for item in resolved_timeline if item['count'] > 0]
+            
+            if created_with_data:
+                print(f"[TIMELINE] Exemplos de datas com issues criadas: {created_with_data[:3]}")
+            if resolved_with_data:
+                print(f"[TIMELINE] Exemplos de datas com issues resolvidas: {resolved_with_data[:3]}")
+            
             return {
                 'created_timeline': created_timeline,
                 'resolved_timeline': resolved_timeline

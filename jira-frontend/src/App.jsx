@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge.jsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.jsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.jsx'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
-import { RefreshCw, Download, Filter, Search, BarChart3, Table as TableIcon, Settings, User, Star, Tag, Trophy } from 'lucide-react'
+import { RefreshCw, Download, Filter, Search, BarChart3, Table as TableIcon, Settings, User, Star, Tag, Trophy, Clock, TrendingUp, CheckCircle, Activity } from 'lucide-react'
 import './App.css'
 import * as XLSX from 'xlsx'
 import { useNavigate } from 'react-router-dom'
@@ -26,6 +26,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
+  const [timelineDays, setTimelineDays] = useState(90)
   
   // Filtros
   const [filters, setFilters] = useState({
@@ -58,11 +59,11 @@ function App() {
     if (selectedProject) {
       fetchIssues()
       fetchDashboardStats()
-      fetchTimelineData()
+      fetchTimelineData(timelineDays)
       fetchFilterOptions()
       fetchProjectTotalIssues()
     }
-  }, [selectedProject, filters, currentPage])
+  }, [selectedProject, filters, currentPage, timelineDays])
 
   const fetchProjects = async () => {
     try {
@@ -115,11 +116,11 @@ function App() {
     }
   }
 
-  const fetchTimelineData = async () => {
+  const fetchTimelineData = async (days = 90) => {
     if (!selectedProject) return
     
     try {
-      const params = new URLSearchParams({ ...getActiveFilters(), days: 30 });
+      const params = new URLSearchParams({ ...getActiveFilters(), days: days });
       const response = await fetch(`${API_BASE_URL}/dashboard/timeline?${params}`)
       const data = await response.json()
       setTimelineData(data)
@@ -368,6 +369,7 @@ function App() {
               <TabsTrigger value="dashboard" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 Dashboard
+                {loading && <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse ml-1"></div>}
               </TabsTrigger>
               <TabsTrigger value="spreadsheet" className="flex items-center gap-2">
                 <TableIcon className="h-4 w-4" />
@@ -554,48 +556,83 @@ function App() {
 
               {dashboardStats && (
                 <>
-                  {/* Cards de estatísticas */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total de Issues</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{dashboardStats.total_issues}</div>
-                        {projectTotalIssues !== null && (
-                          <div className="text-xs text-gray-500 mt-1">Total do Projeto: {projectTotalIssues}</div>
-                        )}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Criadas (30 dias)</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{dashboardStats.recent_issues}</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Resolvidas (30 dias)</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{dashboardStats.resolved_issues}</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Taxa de Resolução</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">
-                          {dashboardStats.recent_issues > 0 
-                            ? Math.round((dashboardStats.resolved_issues / dashboardStats.recent_issues) * 100)
-                            : 0}%
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  {/* Cards de Estatísticas */}
+                  {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {[1, 2, 3, 4].map((i) => (
+                        <Card key={i} className="animate-pulse">
+                          <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+                                <div className="h-8 bg-gray-200 rounded w-16"></div>
+                              </div>
+                              <div className="h-8 w-8 bg-gray-200 rounded"></div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Total de Issues</p>
+                              <p className="text-2xl font-bold">{dashboardStats.total_issues}</p>
+                              {projectTotalIssues && projectTotalIssues !== dashboardStats.total_issues && (
+                                <p className="text-xs text-gray-500">
+                                  {projectTotalIssues} no projeto total
+                                </p>
+                              )}
+                            </div>
+                            <BarChart3 className="h-8 w-8 text-blue-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Criadas (30 dias)</p>
+                              <p className="text-2xl font-bold">{dashboardStats.recent_issues}</p>
+                            </div>
+                            <TrendingUp className="h-8 w-8 text-green-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Resolvidas (30 dias)</p>
+                              <p className="text-2xl font-bold">{dashboardStats.resolved_issues}</p>
+                            </div>
+                            <CheckCircle className="h-8 w-8 text-green-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Taxa de Resolução</p>
+                              <p className="text-2xl font-bold">
+                                {dashboardStats.recent_issues > 0 
+                                  ? Math.round((dashboardStats.resolved_issues / dashboardStats.recent_issues) * 100)
+                                  : 0}%
+                              </p>
+                            </div>
+                            <Activity className="h-8 w-8 text-orange-500" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
 
                   {/* Card dos 5 tickets mais recentes */}
                   {issues && issues.length > 0 && (
@@ -692,21 +729,315 @@ function App() {
                     </Card>
 
                     {/* Timeline */}
-                    {timelineData && (
-                      <Card className="lg:col-span-2">
+                    {loading ? (
+                      <Card className="lg:col-span-2 animate-pulse">
                         <CardHeader>
-                          <CardTitle>Timeline - Criadas vs Resolvidas (30 dias)</CardTitle>
+                          <div className="h-6 bg-gray-200 rounded w-80 mb-2"></div>
+                          <div className="h-4 bg-gray-200 rounded w-96"></div>
                         </CardHeader>
                         <CardContent>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={timelineData.created_timeline}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="date" />
-                              <YAxis />
-                              <Tooltip />
-                              <Line type="monotone" dataKey="count" stroke="#8884d8" name="Criadas" />
+                          <div className="h-80 bg-gray-200 rounded"></div>
+                        </CardContent>
+                      </Card>
+                    ) : timelineData && (timelineData.created_timeline || timelineData.resolved_timeline) ? (
+                      <Card className="lg:col-span-2">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="flex items-center gap-2">
+                                <TrendingUp className="h-5 w-5 text-blue-500" />
+                                Timeline - Criadas vs Resolvidas ({timelineDays} dias)
+                              </CardTitle>
+                              <CardDescription>
+                                Comparação entre issues criadas e resolvidas ao longo do tempo
+                              </CardDescription>
+                            </div>
+                            <Select value={timelineDays.toString()} onValueChange={(value) => setTimelineDays(parseInt(value))}>
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="30">30 dias</SelectItem>
+                                <SelectItem value="60">60 dias</SelectItem>
+                                <SelectItem value="90">90 dias</SelectItem>
+                                <SelectItem value="180">6 meses</SelectItem>
+                                <SelectItem value="365">1 ano</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <ResponsiveContainer width="100%" height={350}>
+                            <LineChart
+                              data={(() => {
+                                // Combinar dados de criadas e resolvidas
+                                const allDates = new Set();
+                                const created = timelineData.created_timeline || [];
+                                const resolved = timelineData.resolved_timeline || [];
+                                
+                                // Coletar todas as datas
+                                created.forEach(item => allDates.add(item.date));
+                                resolved.forEach(item => allDates.add(item.date));
+                                
+                                // Criar mapa para acesso rápido
+                                const createdMap = {};
+                                const resolvedMap = {};
+                                created.forEach(item => createdMap[item.date] = item.count);
+                                resolved.forEach(item => resolvedMap[item.date] = item.count);
+                                
+                                // Combinar dados
+                                return Array.from(allDates).sort().map(date => ({
+                                  date,
+                                  criadas: createdMap[date] || 0,
+                                  resolvidas: resolvedMap[date] || 0
+                                }));
+                              })()}
+                              margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis 
+                                dataKey="date" 
+                                tick={{ fontSize: 12 }}
+                                tickFormatter={(value) => {
+                                  try {
+                                    return new Date(value).toLocaleDateString('pt-BR', { 
+                                      month: 'short', 
+                                      day: 'numeric' 
+                                    });
+                                  } catch {
+                                    return value;
+                                  }
+                                }}
+                              />
+                              <YAxis 
+                                tick={{ fontSize: 12 }} 
+                                domain={[0, 'dataMax + 1']}
+                                allowDataOverflow={false}
+                              />
+                              <Tooltip 
+                                formatter={(value, name) => [value, name === 'criadas' ? 'Issues Criadas' : 'Issues Resolvidas']}
+                                labelFormatter={(label) => {
+                                  try {
+                                    return new Date(label).toLocaleDateString('pt-BR', { 
+                                      weekday: 'long',
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    });
+                                  } catch {
+                                    return label;
+                                  }
+                                }}
+                              />
+                              <Legend />
+                              <Line 
+                                type="monotone" 
+                                dataKey="criadas" 
+                                stroke="#3b82f6" 
+                                strokeWidth={3}
+                                name="Issues Criadas"
+                                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
+                                activeDot={{ r: 8, stroke: '#3b82f6', strokeWidth: 3, fill: '#ffffff' }}
+                                connectNulls={false}
+                              />
+                              <Line 
+                                type="monotone" 
+                                dataKey="resolvidas" 
+                                stroke="#10b981" 
+                                strokeWidth={3}
+                                name="Issues Resolvidas"
+                                dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
+                                activeDot={{ r: 8, stroke: '#10b981', strokeWidth: 3, fill: '#ffffff' }}
+                                connectNulls={false}
+                              />
                             </LineChart>
                           </ResponsiveContainer>
+                          
+                          {/* Resumo */}
+                          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                <span>
+                                  <strong>Total Criadas:</strong> {' '}
+                                  {(timelineData.created_timeline || []).reduce((sum, item) => sum + item.count, 0)} issues
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <span>
+                                  <strong>Total Resolvidas:</strong> {' '}
+                                  {(timelineData.resolved_timeline || []).reduce((sum, item) => sum + item.count, 0)} issues
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-600">
+                              <strong>Saldo:</strong> {' '}
+                              {(timelineData.created_timeline || []).reduce((sum, item) => sum + item.count, 0) - 
+                               (timelineData.resolved_timeline || []).reduce((sum, item) => sum + item.count, 0)} issues
+                              {' '}(positivo = mais criadas que resolvidas)
+                            </div>
+                            {(() => {
+                              const totalCreated = (timelineData.created_timeline || []).reduce((sum, item) => sum + item.count, 0);
+                              const totalResolved = (timelineData.resolved_timeline || []).reduce((sum, item) => sum + item.count, 0);
+                              
+                              if (totalCreated === 0 && totalResolved === 0) {
+                                return (
+                                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                                    <strong>💡 Dica:</strong> Nenhuma issue foi criada ou resolvida nos últimos {timelineDays} dias neste projeto/filtro. 
+                                    Tente remover filtros ou selecionar um período maior.
+                                  </div>
+                                );
+                              }
+                              
+                              return null;
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="lg:col-span-2">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-gray-400" />
+                            Timeline - Criadas vs Resolvidas ({timelineDays} dias)
+                          </CardTitle>
+                          <CardDescription>
+                            Comparação entre issues criadas e resolvidas ao longo do tempo
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-center h-80 text-gray-500">
+                            <div className="text-center">
+                              <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                              <p className="text-lg font-medium">Nenhum dado de timeline encontrado</p>
+                              <p className="text-sm">Não há dados suficientes para gerar o gráfico de timeline.</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                    
+                    {/* Backlog Aging */}
+                    {loading ? (
+                      <Card className="lg:col-span-2 animate-pulse">
+                        <CardHeader>
+                          <div className="h-6 bg-gray-200 rounded w-64 mb-2"></div>
+                          <div className="h-4 bg-gray-200 rounded w-96"></div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-96 bg-gray-200 rounded"></div>
+                        </CardContent>
+                      </Card>
+                    ) : dashboardStats.backlog_aging ? (
+                      <Card className="lg:col-span-2">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-orange-500" />
+                            Backlog Aging - Tickets Abertos por Tempo
+                          </CardTitle>
+                          <CardDescription>
+                            Análise de tickets em aberto por faixas de tempo e prioridade. 
+                            Identifica issues antigas que podem precisar de atenção.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {dashboardStats.backlog_aging.length > 0 && dashboardStats.backlog_aging.some(item => item.total > 0) ? (
+                            <ResponsiveContainer width="100%" height={400}>
+                              <BarChart
+                                data={dashboardStats.backlog_aging}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis 
+                                  dataKey="time_range" 
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={80}
+                                  interval={0}
+                                />
+                                <YAxis />
+                                <Tooltip 
+                                  formatter={(value, name) => {
+                                    const priorityNames = {
+                                      critical: 'Critical',
+                                      high: 'High', 
+                                      medium: 'Medium',
+                                      low: 'Low',
+                                      no_priority: 'Sem prioridade'
+                                    };
+                                    return [value, priorityNames[name] || name];
+                                  }}
+                                  labelFormatter={(label) => `Período: ${label}`}
+                                />
+                                <Legend />
+                                <Bar dataKey="no_priority" stackId="stack" fill="#6b7280" name="Sem prioridade" />
+                                <Bar dataKey="low" stackId="stack" fill="#16a34a" name="Low" />
+                                <Bar dataKey="medium" stackId="stack" fill="#ca8a04" name="Medium" />
+                                <Bar dataKey="high" stackId="stack" fill="#ea580c" name="High" />
+                                <Bar dataKey="critical" stackId="stack" fill="#dc2626" name="Critical" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex items-center justify-center h-64 text-gray-500">
+                              <div className="text-center">
+                                <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                                <p className="text-lg font-medium">Nenhum ticket em aberto encontrado</p>
+                                <p className="text-sm">Todas as issues do projeto estão resolvidas.</p>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Legenda explicativa */}
+                          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-red-600 rounded"></div>
+                                <span>Critical: {dashboardStats.backlog_aging.reduce((sum, item) => sum + item.critical, 0)} tickets</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-orange-600 rounded"></div>
+                                <span>High: {dashboardStats.backlog_aging.reduce((sum, item) => sum + item.high, 0)} tickets</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-yellow-600 rounded"></div>
+                                <span>Medium: {dashboardStats.backlog_aging.reduce((sum, item) => sum + item.medium, 0)} tickets</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-green-600 rounded"></div>
+                                <span>Low: {dashboardStats.backlog_aging.reduce((sum, item) => sum + item.low, 0)} tickets</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gray-600 rounded"></div>
+                                <span>Sem prioridade: {dashboardStats.backlog_aging.reduce((sum, item) => sum + item.no_priority, 0)} tickets</span>
+                              </div>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-600">
+                              <strong>Total de tickets abertos:</strong> {' '}
+                              {dashboardStats.backlog_aging.reduce((sum, item) => sum + item.total, 0)} tickets
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="lg:col-span-2">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-gray-400" />
+                            Backlog Aging - Tickets Abertos por Tempo
+                          </CardTitle>
+                          <CardDescription>
+                            Análise de tickets em aberto por faixas de tempo e prioridade.
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-center h-64 text-gray-500">
+                            <div className="text-center">
+                              <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                              <p className="text-lg font-medium">Nenhum ticket em aberto encontrado</p>
+                              <p className="text-sm">Todas as issues do projeto estão resolvidas ou não há dados disponíveis.</p>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     )}

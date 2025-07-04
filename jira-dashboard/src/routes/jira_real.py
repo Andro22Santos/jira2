@@ -266,6 +266,44 @@ def get_dashboard_stats():
                 {'assignee': 'Bruno Silva', 'count': 10},
                 {'assignee': 'Diana Mobile', 'count': 7},
                 {'assignee': 'Felipe DevOps', 'count': 10}
+            ],
+            'backlog_aging': [
+                {
+                    'time_range': '0-5 dias',
+                    'total': 8,
+                    'critical': 2,
+                    'high': 3,
+                    'medium': 2,
+                    'low': 1,
+                    'no_priority': 0
+                },
+                {
+                    'time_range': '6-15 dias',
+                    'total': 12,
+                    'critical': 1,
+                    'high': 4,
+                    'medium': 5,
+                    'low': 2,
+                    'no_priority': 0
+                },
+                {
+                    'time_range': '16-30 dias',
+                    'total': 6,
+                    'critical': 0,
+                    'high': 2,
+                    'medium': 3,
+                    'low': 1,
+                    'no_priority': 0
+                },
+                {
+                    'time_range': 'Mais de 30 dias',
+                    'total': 4,
+                    'critical': 1,
+                    'high': 1,
+                    'medium': 1,
+                    'low': 0,
+                    'no_priority': 1
+                }
             ]
         })
 
