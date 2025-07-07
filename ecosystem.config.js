@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'jira-backend',
+      name: 'jira-dashboard-backend',
       script: 'jira-dashboard/src/main.py',
       interpreter: 'python3',
       cwd: './jira-dashboard',
@@ -15,13 +15,13 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '1G',
-      error_file: './logs/backend-error.log',
-      out_file: './logs/backend-out.log',
-      log_file: './logs/backend-combined.log',
+      error_file: './logs/jira-backend-error.log',
+      out_file: './logs/jira-backend-out.log',
+      log_file: './logs/jira-backend-combined.log',
       time: true
     },
     {
-      name: 'jira-frontend',
+      name: 'jira-dashboard-frontend',
       script: 'serve',
       args: '-s dist -l 3001 -H 0.0.0.0',
       cwd: './jira-frontend',
@@ -29,9 +29,9 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
-      error_file: './logs/frontend-error.log',
-      out_file: './logs/frontend-out.log',
-      log_file: './logs/frontend-combined.log',
+      error_file: './logs/jira-frontend-error.log',
+      out_file: './logs/jira-frontend-out.log',
+      log_file: './logs/jira-frontend-combined.log',
       time: true
     }
   ]

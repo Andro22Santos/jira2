@@ -27,10 +27,10 @@ fi
 echo "📁 Criando diretório de logs..."
 mkdir -p logs
 
-# 3. Parar processos anteriores se existirem
-echo "🛑 Parando processos anteriores..."
-pm2 stop jira-backend jira-frontend 2>/dev/null || true
-pm2 delete jira-backend jira-frontend 2>/dev/null || true
+# 3. Parar APENAS nossas aplicações Jira (sem afetar outras)
+echo "🛑 Parando aplicações Jira Dashboard anteriores..."
+pm2 stop jira-dashboard-backend jira-dashboard-frontend 2>/dev/null || true
+pm2 delete jira-dashboard-backend jira-dashboard-frontend 2>/dev/null || true
 
 # 4. Preparar backend
 echo "🔧 Preparando backend..."
@@ -68,25 +68,24 @@ fi
 
 cd ../
 
-# 6. Iniciar aplicações com PM2
-echo "🚀 Iniciando aplicações com PM2..."
+# 6. Iniciar aplicações Jira com PM2
+echo "🚀 Iniciando aplicações Jira Dashboard com PM2..."
 pm2 start ecosystem.config.js
 
 # 7. Salvar configuração PM2 para reinicialização automática
 pm2 save
-pm2 startup
 
 echo ""
-echo "✅ Deploy concluído!"
-echo "==================="
+echo "✅ Deploy Jira Dashboard concluído!"
+echo "===================================="
 echo "📱 Frontend: http://$EC2_PUBLIC_IP:3001"
 echo "🔧 Backend:  http://$EC2_PUBLIC_IP:5001"
 echo ""
 echo "📋 Comandos úteis:"
-echo "pm2 status           - Ver status das aplicações"
-echo "pm2 logs             - Ver logs em tempo real"
-echo "pm2 restart all      - Reiniciar todas as aplicações"
-echo "pm2 stop all         - Parar todas as aplicações"
-echo "pm2 delete all       - Remover todas as aplicações"
+echo "./pm2-control.sh status   - Ver status das aplicações Jira"
+echo "./pm2-control.sh logs     - Ver logs das aplicações Jira"
+echo "./pm2-control.sh restart  - Reiniciar aplicações Jira"
+echo "./pm2-control.sh stop     - Parar aplicações Jira"
 echo ""
-echo "📁 Logs salvos em: ./logs/" 
+echo "📁 Logs salvos em: ./logs/"
+echo "🔒 Suas outras aplicações PM2 não foram afetadas" 

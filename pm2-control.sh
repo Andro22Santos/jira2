@@ -18,28 +18,28 @@ show_help() {
 
 case "$1" in
     start)
-        echo "🚀 Iniciando aplicações..."
+        echo "🚀 Iniciando aplicações Jira Dashboard..."
         pm2 start ecosystem.config.js
         pm2 status
         ;;
     stop)
-        echo "🛑 Parando aplicações..."
-        pm2 stop jira-backend jira-frontend
+        echo "🛑 Parando aplicações Jira Dashboard..."
+        pm2 stop jira-dashboard-backend jira-dashboard-frontend
         pm2 status
         ;;
     restart)
-        echo "🔄 Reiniciando aplicações..."
-        pm2 restart jira-backend jira-frontend
+        echo "🔄 Reiniciando aplicações Jira Dashboard..."
+        pm2 restart jira-dashboard-backend jira-dashboard-frontend
         pm2 status
         ;;
     status)
         pm2 status
         echo ""
-        echo "📋 Logs disponíveis em ./logs/"
+        echo "📋 Logs Jira Dashboard disponíveis em ./logs/"
         ;;
     logs)
-        echo "📋 Logs em tempo real (Ctrl+C para sair):"
-        pm2 logs
+        echo "📋 Logs Jira Dashboard em tempo real (Ctrl+C para sair):"
+        pm2 logs jira-dashboard-backend jira-dashboard-frontend
         ;;
     deploy)
         echo "🚀 Executando deploy completo..."
