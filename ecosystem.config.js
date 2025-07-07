@@ -7,6 +7,8 @@ module.exports = {
       cwd: './jira-dashboard',
       env: {
         FLASK_ENV: 'production',
+        FLASK_HOST: '0.0.0.0',
+        FLASK_PORT: '5001',
         LOGIN_USERNAME: 'admin',
         LOGIN_PASSWORD: 'Jira@2025',
         SECRET_KEY: 'asdf#FGSgvasgf$5$WGT'
@@ -25,6 +27,9 @@ module.exports = {
       script: 'serve',
       args: '-s dist -l 3001 -H 0.0.0.0',
       cwd: './jira-frontend',
+      env: {
+        NODE_ENV: 'production'
+      },
       instances: 1,
       autorestart: true,
       watch: false,

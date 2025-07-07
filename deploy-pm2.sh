@@ -1,91 +1,75 @@
 #!/bin/bash
 
-echo "🚀 Deploy Jira Dashboard com PM2"
-echo "=================================="
+echo "🚀 Iniciando deploy do Jira Dashboard com PM2..."
 
-# Obtém o IP público da EC2 automaticamente
-EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
-
-if [ -n "$EC2_PUBLIC_IP" ]; then
-    export VITE_API_URL="http://$EC2_PUBLIC_IP:5001/api"
-    echo "🌐 IP da EC2 detectado: $EC2_PUBLIC_IP"
-else
-    export VITE_API_URL="http://localhost:5001/api"
-    echo "⚠️  IP não detectado, usando localhost"
+# Detectar IP da EC2 automaticamente
+if command -v curl >/dev/null 2>&1; then
+    PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
 fi
 
-# 1. Instalar PM2 globalmente se não estiver instalado
-echo "📦 Verificando PM2..."
-if ! command -v pm2 &> /dev/null; then
-    echo "Instalando PM2..."
-    npm install -g pm2
-else
-    echo "PM2 já está instalado"
+if [ -z "$PUBLIC_IP" ]; then
+    PUBLIC_IP=$(hostname -I | awk '{print $1}' 2>/dev/null)
 fi
 
-# 2. Criar diretório de logs
-echo "📁 Criando diretório de logs..."
-mkdir -p logs
+if [ -z "$PUBLIC_IP" ]; then
+    echo "❌ Não foi possível detectar o IP automaticamente"
+    echo "💡 Execute: export VITE_API_URL='http://SEU_IP:5001/api' antes de rodar este script"
+    exit 1
+fi
 
-# 3. Parar APENAS nossas aplicações Jira (sem afetar outras)
-echo "🛑 Parando aplicações Jira Dashboard anteriores..."
+echo "🌐 IP detectado: $PUBLIC_IP"
+echo "🔗 Frontend será acessível em: http://$PUBLIC_IP:3001"
+echo "🔗 Backend será acessível em: http://$PUBLIC_IP:5001"
+
+# Parar aplicações existentes (se houver)
+echo "⏹️ Parando aplicações existentes..."
 pm2 stop jira-dashboard-backend jira-dashboard-frontend 2>/dev/null || true
 pm2 delete jira-dashboard-backend jira-dashboard-frontend 2>/dev/null || true
 
-# 4. Preparar backend
-echo "🔧 Preparando backend..."
-cd jira-dashboard || exit 1
-
-# Ativar ambiente virtual
-if [ ! -d "venv" ]; then
-    echo "Criando ambiente virtual..."
-    python3 -m venv venv
-fi
-
-source venv/bin/activate
+# Criar diretório de logs
+mkdir -p logs
 
 # Instalar dependências do backend
-pip install -r requirements.txt
+echo "📦 Instalando dependências do backend..."
+cd jira-dashboard
+pip3 install -r requirements.txt --quiet
+cd ..
 
-cd ../
-
-# 5. Preparar frontend
-echo "🎨 Preparando frontend..."
-cd jira-frontend || exit 1
-
-# Instalar dependências do frontend
-npm install --legacy-peer-deps
-
-# Fazer build do frontend
-echo "🔨 Fazendo build do frontend com API_URL: $VITE_API_URL"
+# Configurar e buildar frontend com URL da API correta
+echo "🎨 Buildando frontend com API_URL: http://$PUBLIC_IP:5001/api"
+export VITE_API_URL="http://$PUBLIC_IP:5001/api"
+cd jira-frontend
+npm install --silent
 npm run build
+cd ..
 
 # Instalar serve globalmente se não estiver instalado
-if ! command -v serve &> /dev/null; then
-    echo "Instalando serve..."
+if ! command -v serve >/dev/null 2>&1; then
+    echo "📦 Instalando serve..."
     npm install -g serve
 fi
 
-cd ../
-
-# 6. Iniciar aplicações Jira com PM2
-echo "🚀 Iniciando aplicações Jira Dashboard com PM2..."
+# Iniciar aplicações com PM2
+echo "🚀 Iniciando aplicações com PM2..."
 pm2 start ecosystem.config.js
 
-# 7. Salvar configuração PM2 para reinicialização automática
-pm2 save
+# Aguardar um pouco para as aplicações iniciarem
+sleep 3
+
+# Mostrar status
+echo ""
+echo "📊 Status das aplicações:"
+pm2 status
 
 echo ""
-echo "✅ Deploy Jira Dashboard concluído!"
-echo "===================================="
-echo "📱 Frontend: http://$EC2_PUBLIC_IP:3001"
-echo "🔧 Backend:  http://$EC2_PUBLIC_IP:5001"
+echo "✅ Deploy concluído!"
+echo "🌐 Acesse o dashboard em: http://$PUBLIC_IP:3001"
+echo "🔧 Backend disponível em: http://$PUBLIC_IP:5001"
 echo ""
-echo "📋 Comandos úteis:"
-echo "./pm2-control.sh status   - Ver status das aplicações Jira"
-echo "./pm2-control.sh logs     - Ver logs das aplicações Jira"
-echo "./pm2-control.sh restart  - Reiniciar aplicações Jira"
-echo "./pm2-control.sh stop     - Parar aplicações Jira"
+echo "📝 Para monitorar:"
+echo "   pm2 logs jira-dashboard-backend"
+echo "   pm2 logs jira-dashboard-frontend"
 echo ""
-echo "📁 Logs salvos em: ./logs/"
-echo "🔒 Suas outras aplicações PM2 não foram afetadas" 
+echo "🛠️ Para controlar:"
+echo "   ./pm2-control.sh status"
+echo "   ./pm2-control.sh restart all" 
