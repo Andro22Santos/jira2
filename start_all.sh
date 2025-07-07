@@ -6,6 +6,10 @@ cd src
 start "Backend" cmd /k python main.py
 cd ..\..\jira-frontend
 
+REM Define a URL da API para produção
+REM ALTERE ESTA LINHA COM O IP DA SUA EC2:
+set VITE_API_URL=http://localhost:5000/api
+
 REM Faz o build do frontend
 call npm run build
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 # DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -15,6 +16,11 @@ from src.routes.jira_real import jira_bp
 from src.routes.auth import auth_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
+
+# Configuração de logging mais segura
+if os.getenv('FLASK_ENV') == 'production':
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
 # Chave secreta para sessão (pode ser movida para .env)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'asdf#FGSgvasgf$5$WGT')
 
@@ -50,4 +56,6 @@ def serve(path):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Em produção, desabilita debug para reduzir logs
+    debug_mode = os.getenv('FLASK_ENV') != 'production'
+    app.run(host='0.0.0.0', port=5001, debug=debug_mode)

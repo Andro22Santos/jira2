@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+// Configuração inteligente da API (mesma lógica do App.jsx)
+const getApiUrl = () => {
+  // Se VITE_API_URL está definida (produção), use ela
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  
+  // Para desenvolvimento local (quando roda com npm run dev)
+  if (import.meta.env.DEV) {
+    return 'http://localhost:5000/api'
+  }
+  
+  // Fallback para build de produção sem VITE_API_URL
+  return '/api'
+}
+
+// Função simples de codificação para ofuscar dados
+const encodeData = (data) => {
+  return btoa(JSON.stringify(data))
+}
+
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -11,11 +32,17 @@ export default function Login() {
     e.preventDefault();
     setError('');
     try {
-      const API_URL = import.meta.env.VITE_API_URL;
+      const API_URL = getApiUrl();
+      
+      // Ofuscar dados antes de enviar
+      const payload = {
+        data: encodeData({ username, password })
+      };
+      
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
